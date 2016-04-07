@@ -1,0 +1,9 @@
+sudo: false
+language: erlang
+otp_release:
+    - 17.4
+    - 17.5
+    - 18.0
+    - 18.1
+    - 18.2
+script: "rebar get-deps compile"

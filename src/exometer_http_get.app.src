@@ -1,0 +1,13 @@
+{application, exometer_http_get,
+ [
+  {description, "HTTP get reporter for exometer"},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  cowboy,
+                  exometer_core
+                 ]},
+  {env, []}
+ ]}.
