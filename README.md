@@ -45,7 +45,8 @@ In application config:
 ```erlang
 {exometer,
     {subscriptions, [
-        {exometer_report_http_get, [erlang, memory], total, manual, [{path, "/erlang/memory"}]},
+        {exometer_report_http_get, [erlang, memory], total, manual,
+         [{path, "/erlang/memory"}, {description, "Memory usage of BEAM in bytes"}, {type, "gauge"}]},
     ]}
 }.
 ```
@@ -53,7 +54,8 @@ In application config:
 As function call within your modules:
 
 ```erlang
-exometer_report:subscribe(exometer_report_http_get, [erlang, memory], total, manual, [{path, "/erlang/memory"}]).
+exometer_report:subscribe(exometer_report_http_get, [erlang, memory], total, manual,
+         [{path, "/erlang/memory"}, {description, "Memory usage of BEAM in bytes"}, {type, "gauge"}]).
 ```
 
 Check if everything is working:
@@ -61,6 +63,21 @@ Check if everything is working:
 ```
 curl -i http://localhost:8080/erlang/memory
 ```
+
+Of course you can also check it in your browser. It is highly recommended to use JSON support.
+
+```json
+{
+    description: "Memory usage of BEAM in bytes",
+    type: "gauge",
+    datapoints: {
+        total: 32647912
+    }
+}
+```
+
+Subpaths are also possible. Hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. 
+Additionally the complete path of every metric will be part of the JSON objects such that it is easy to find single metrics.
 
 Note that the report interval should be set to `manual` such that the metric is actually never reported using the time triggers. The metric value will be retrieved from exometer directly when one sends a HTTP GET request to the URL.
 
