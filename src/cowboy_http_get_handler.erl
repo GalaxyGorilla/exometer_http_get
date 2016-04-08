@@ -41,5 +41,7 @@ put_json(Req, State) ->
 
 get_json(Req, RespBody) ->
     Json = jsx:encode(RespBody),
-    {Json, Req, []}.
+    StrippedJson = re:replace(Json, ["\\\\"], "", [{return, binary}, global]),
+    [StrippedJson1] = tl(binary:split(StrippedJson, [<<"\"{">>, <<"}\"">>], [global, trim])),
+    {[<<"{">>, StrippedJson1, <<"}">>], Req, []}.
 
