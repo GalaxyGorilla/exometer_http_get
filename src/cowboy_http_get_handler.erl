@@ -14,9 +14,9 @@ init(_Type, _Req, _Opts) ->
 
 resource_exists(Req, _State) ->
     {Path, Req1} = cowboy_req:path(Req),
-    case get_datapoints(Path) of
-        {ok, Value} ->
-            JsonReplyBody = jsx:encode(Value),
+    case get_metric_info(Path) of
+        {ok, MetricInfo} ->
+            JsonReplyBody = jsx:encode(MetricInfo),
             {true, Req1, JsonReplyBody};
         {error, _Reason} ->
             {halt, Req1, []}
@@ -33,12 +33,13 @@ content_types_provided(Req, State) ->
 
 
 %% -- Helpers
-get_datapoints(Path) ->
+get_metric_info(Path) ->
     exometer_report:call_reporter(exometer_report_http_get, {path, Path}).
 
 put_json(Req, State) ->
     {true, Req, State}.
 
 get_json(Req, RespBody) ->
-    {jsx:encode(RespBody), Req, []}.
+    Json = jsx:encode(RespBody),
+    {Json, Req, []}.
 

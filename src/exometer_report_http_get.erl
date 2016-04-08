@@ -50,21 +50,26 @@ exometer_init(Opts) ->
         Error   -> Error
     end.
 
-exometer_subscribe(Metric, DataPoint, _Interval, Opts, #state{subscriptions=Subscriptions} = State)
-  when is_list(Opts) ->
+exometer_subscribe(Metric, DataPoints, _Interval, Opts, #state{subscriptions=Subscriptions} = State)
+    when is_list(Opts) ->
     case proplists:get_value(path, Opts, undefined) of
         undefined ->
             {{error, path_missing}, State};
         Path ->
-            case maps:is_key(Path, Subscriptions) of
+            BinPath = binarize_list(Path),
+            Description = binarize_list(proplists:get_value(description, Opts, undefined)),
+            Type = binarize_list(proplists:get_value(type, Opts, undefined)),
+            case maps:is_key(BinPath, Subscriptions) of
                 true ->
                     {ok, State};
                 false ->
-                    DataPoint1 = case is_list(DataPoint) of
-                                     true   -> DataPoint;
-                                     false  -> [DataPoint]
+                    DataPoints1 = case is_list(DataPoints) of
+                                     true   -> DataPoints;
+                                     false  -> [DataPoints]
                                  end,
-                    NewSubscriptions = maps:put(binarize_list(Path), {Metric, DataPoint1}, Subscriptions),
+                    NewSubscriptions = maps:put(binarize_list(Path),
+                                                {Metric, DataPoints1, Description, Type},
+                                                Subscriptions),
                     {ok, State#state{subscriptions=NewSubscriptions}}
             end
     end;
@@ -74,8 +79,8 @@ exometer_subscribe(_Metric, _DataPoint, _Interval, _Opts, State) ->
 exometer_unsubscribe(Metric, _DataPoint, _Extra, #state{subscriptions=Subscriptions} = State) ->
     Pred = fun(_Key, Value) ->
                    case Value of
-                       {Metric, _}  -> true;
-                       _            -> false
+                       {Metric, _, _, _} -> true;
+                       _                 -> false
                    end
            end,
     PathToDelete = hd(maps:keys(maps:filter(Pred, Subscriptions))),
@@ -86,13 +91,16 @@ exometer_call({path, Path}, _From, #state{subscriptions=Subscriptions} = State) 
     case maps:get(Path, Subscriptions, undefined) of
         undefined ->
             {reply, {error, not_subscribed}, State};
-        {Metric, DataPoints} ->
+        {Metric, DataPoints, Description, Type} ->
             case exometer:get_value(Metric, DataPoints) of
                 {ok, DataPointValues} ->
                     DataPoints1 = [{DataPoint, binarize_list(Value)} ||
                                    {DataPoint, Value} <- DataPointValues],
-                    {reply, {ok, DataPoints1}, State};
-                _Error      -> {reply, {error, not_found}, State}
+                    MetricInfo  = [{description, Description},
+                                   {type, Type},
+                                   {datapoints, DataPoints1}],
+                    {reply, {ok, MetricInfo}, State};
+                _Error -> {reply, {error, not_found}, State}
             end
     end;
 exometer_call(_Req, _From, State) ->
