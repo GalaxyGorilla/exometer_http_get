@@ -51,7 +51,7 @@ exometer_init(Opts) ->
     end.
 
 exometer_subscribe(Metric, DataPoint, _Interval, Opts, #state{subscriptions=Subscriptions} = State)
-    when is_list(Opts) ->
+  when is_list(Opts) ->
     case proplists:get_value(path, Opts, undefined) of
         undefined ->
             {{error, path_missing}, State};
@@ -64,7 +64,7 @@ exometer_subscribe(Metric, DataPoint, _Interval, Opts, #state{subscriptions=Subs
                                      true   -> DataPoint;
                                      false  -> [DataPoint]
                                  end,
-                    NewSubscriptions = maps:put(to_binary(Path), {Metric, DataPoint1}, Subscriptions),
+                    NewSubscriptions = maps:put(binarize_list(Path), {Metric, DataPoint1}, Subscriptions),
                     {ok, State#state{subscriptions=NewSubscriptions}}
             end
     end;
@@ -88,7 +88,10 @@ exometer_call({path, Path}, _From, #state{subscriptions=Subscriptions} = State) 
             {reply, {error, not_subscribed}, State};
         {Metric, DataPoints} ->
             case exometer:get_value(Metric, DataPoints) of
-                {ok, Value} -> {reply, {ok, Value}, State};
+                {ok, DataPointValues} ->
+                    DataPoints1 = [{DataPoint, binarize_list(Value)} ||
+                                   {DataPoint, Value} <- DataPointValues],
+                    {reply, {ok, DataPoints1}, State};
                 _Error      -> {reply, {error, not_found}, State}
             end
     end;
@@ -121,5 +124,5 @@ subscribe({Name, DataPoint, Interval, Extra}) ->
     exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, false);
 subscribe(_Name) -> [].
 
-to_binary(List) when is_list(List) -> list_to_binary(List);
-to_binary(Binary) when is_binary(Binary) -> Binary.
+binarize_list(List) when is_list(List) -> list_to_binary(List);
+binarize_list(Term) -> Term.
