@@ -1,19 +1,44 @@
 -module(cowboy_http_get_handler).
 
--export([init/3, handle/2, terminate/3]).
+-export([init/3,
+         resource_exists/2,
+         allowed_methods/2,
+         content_types_accepted/2,
+         content_types_provided/2]).
 
-init(_Type, Req, _Opts) ->
-    {ok, Req, undefined}.
+-export([get_json/2, put_json/2]).
 
-handle(Req, State) ->
+%% -- cowboy callbacks
+init(_Type, _Req, _Opts) ->
+    {upgrade, protocol, cowboy_rest}.
+
+resource_exists(Req, _State) ->
     {Path, Req1} = cowboy_req:path(Req),
-    case exometer_report:call_reporter(exometer_report_http_get, {path, Path}) of
+    case get_datapoints(Path) of
         {ok, Value} ->
-            StringDatapoints = lists:flatten(io_lib:format("~p",[Value])),
-            {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], list_to_binary(StringDatapoints), Req1);
+            JsonReplyBody = jsx:encode(Value),
+            {true, Req1, JsonReplyBody};
         {error, _Reason} ->
-            {ok, Req2} = cowboy_req:reply(204, [{<<"content-type">>, <<"text/plain">>}], <<"">>, Req1)
-    end,
-    {ok, Req2, State}.
+            {halt, Req1, []}
+    end.
 
-terminate(_Reason, _Req, _State) -> ok.
+allowed_methods(Req, State) ->
+    {[<<"GET">>], Req, State}.
+
+content_types_accepted(Req, State) ->
+    {[{{<<"application">>, <<"json">>, []}, put_json}], Req, State}.
+
+content_types_provided(Req, State) ->
+    {[{{<<"application">>, <<"json">>, []}, get_json}], Req, State}.
+
+
+%% -- Helpers
+get_datapoints(Path) ->
+    exometer_report:call_reporter(exometer_report_http_get, {path, Path}).
+
+put_json(Req, State) ->
+    {true, Req, State}.
+
+get_json(Req, RespBody) ->
+    {jsx:encode(RespBody), Req, []}.
+

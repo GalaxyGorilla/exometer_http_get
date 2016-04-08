@@ -1,6 +1,6 @@
 # exometer_http_get [![Build Status](https://travis-ci.org/GalaxyGorilla/exometer_http_get.svg)](https://travis-ci.org/GalaxyGorilla/exometer_http_get)
 
-This reporter exposes data from exometer via HTTP GET.
+This reporter exposes data from exometer via HTTP GET returning data as JSON Object.
 
 ### Usage
 
