@@ -15,9 +15,8 @@ init(_Type, _Req, _Opts) ->
 resource_exists(Req, _State) ->
     {Path, Req1} = cowboy_req:path(Req),
     case get_metric_info(Path) of
-        {ok, MetricInfo} ->
-            JsonReplyBody = jsx:encode(MetricInfo),
-            {true, Req1, JsonReplyBody};
+        {ok, Payload} ->
+            {true, Req1, Payload};
         {error, _Reason} ->
             {halt, Req1, []}
     end.
@@ -39,9 +38,8 @@ get_metric_info(Path) ->
 put_json(Req, State) ->
     {true, Req, State}.
 
-get_json(Req, RespBody) ->
-    Json = jsx:encode(RespBody),
+get_json(Req, Payload) ->
+    Json = jsx:encode(Payload),
     StrippedJson = re:replace(Json, ["\\\\"], "", [{return, binary}, global]),
-    [StrippedJson1] = tl(binary:split(StrippedJson, [<<"\"{">>, <<"}\"">>], [global, trim])),
-    {[<<"{">>, StrippedJson1, <<"}">>], Req, []}.
+    {StrippedJson, Req, []}.
 

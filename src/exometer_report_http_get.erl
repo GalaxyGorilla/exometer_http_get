@@ -51,22 +51,22 @@ exometer_init(Opts) ->
     end.
 
 exometer_subscribe(Metric, DataPoints, _Interval, Opts, #state{subscriptions=Subscriptions} = State)
-    when is_list(Opts) ->
+  when is_list(Opts) ->
     case proplists:get_value(path, Opts, undefined) of
         undefined ->
             {{error, path_missing}, State};
         Path ->
             BinPath = binarize_list(Path),
-            Description = binarize_list(proplists:get_value(description, Opts, undefined)),
-            Type = binarize_list(proplists:get_value(type, Opts, undefined)),
+            Description = binarize_list(proplists:get_value(description, Opts, <<"">>)),
+            Type = binarize_list(proplists:get_value(type, Opts, <<"">>)),
             case maps:is_key(BinPath, Subscriptions) of
                 true ->
                     {ok, State};
                 false ->
                     DataPoints1 = case is_list(DataPoints) of
-                                     true   -> DataPoints;
-                                     false  -> [DataPoints]
-                                 end,
+                                      true   -> DataPoints;
+                                      false  -> [DataPoints]
+                                  end,
                     NewSubscriptions = maps:put(binarize_list(Path),
                                                 {Metric, DataPoints1, Description, Type},
                                                 Subscriptions),
@@ -88,21 +88,7 @@ exometer_unsubscribe(Metric, _DataPoint, _Extra, #state{subscriptions=Subscripti
     {ok, State#state{subscriptions=NewSubscriptions}}.
 
 exometer_call({path, Path}, _From, #state{subscriptions=Subscriptions} = State) ->
-    case maps:get(Path, Subscriptions, undefined) of
-        undefined ->
-            {reply, {error, not_subscribed}, State};
-        {Metric, DataPoints, Description, Type} ->
-            case exometer:get_value(Metric, DataPoints) of
-                {ok, DataPointValues} ->
-                    DataPoints1 = [{DataPoint, binarize_list(Value)} ||
-                                   {DataPoint, Value} <- DataPointValues],
-                    MetricInfo  = [{description, Description},
-                                   {type, Type},
-                                   {datapoints, DataPoints1}],
-                    {reply, {ok, MetricInfo}, State};
-                _Error -> {reply, {error, not_found}, State}
-            end
-    end;
+    {reply, get_metrics(Path, Subscriptions), State};
 exometer_call(_Req, _From, State) ->
     {ok, State}.
 
@@ -126,11 +112,63 @@ exometer_terminate(_Reason, _) -> ignore.
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
-subscribe(Subscribtions) when is_list(Subscribtions) ->
-    [subscribe(Subscribtion) || Subscribtion <- Subscribtions];
+subscribe(Subscriptions) when is_list(Subscriptions) ->
+    [subscribe(Subscription) || Subscription <- Subscriptions];
 subscribe({Name, DataPoint, Interval, Extra}) ->
     exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, false);
 subscribe(_Name) -> [].
 
 binarize_list(List) when is_list(List) -> list_to_binary(List);
 binarize_list(Term) -> Term.
+
+get_metrics(Path, Subscriptions) ->
+    case maps:get(Path, Subscriptions, undefined) of
+        undefined ->
+            % return all metrics which habe `Path` as prefix in their path,
+            % the path of each metric is included in the JSON object
+            find_metrics(Path, Subscriptions);
+        MetricInfo ->
+            % return this single metric without its path in the JSON object
+            proceed_single_metric(Path, MetricInfo, false)
+    end.
+
+proceed_single_metric(Path, {Metric, DataPoints, Description, Type}, Pathflag) ->
+    case exometer:get_value(Metric, DataPoints) of
+        {ok, DataPointValues} ->
+            DataPoints1 = [{DataPoint, binarize_list(Value)} ||
+                           {DataPoint, Value} <- DataPointValues],
+            Payload = [{description, Description},
+                       {type, Type},
+                       {datapoints, DataPoints1}],
+            {ok, maybe_add_path(Payload, Path, Pathflag)};
+        _Error ->
+            {error, not_found}
+    end.
+
+maybe_add_path(Payload, _Path, false) -> Payload;
+maybe_add_path(Payload, Path, true) -> [{path, Path}] ++ Payload.
+
+find_metrics(Path, Subscriptions) ->
+    PrefixPaths = get_prefix_paths(Path, maps:keys(Subscriptions)),
+    Pred = fun(K,_V) -> lists:member(K, PrefixPaths) end,
+    FilteredSubsciptions = maps:filter(Pred, Subscriptions),
+    case accumulate_metrics(maps:to_list(FilteredSubsciptions)) of
+        []      -> {error, not_found};
+        Metrics -> {ok, Metrics}
+    end.
+
+get_prefix_paths(Path, Paths) ->
+    ByteSize = byte_size(Path),
+    [ SinglePath || SinglePath <- Paths, ByteSize==binary:longest_common_prefix([Path, SinglePath]) ].
+
+accumulate_metrics(Subscriptions) ->
+    accumulate_metrics(Subscriptions, []).
+
+accumulate_metrics([], Metrics) ->
+    Metrics;
+accumulate_metrics([{Path, MetricInfo} | Subscriptions], Metrics) ->
+    case proceed_single_metric(Path, MetricInfo, true) of
+        {ok, Metric}     -> accumulate_metrics(Subscriptions, Metrics ++ [Metric]);
+        {error, _Reason} -> accumulate_metrics(Subscriptions, Metrics)
+    end.
+
