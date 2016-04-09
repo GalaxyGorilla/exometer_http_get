@@ -35,7 +35,7 @@ Available options:
 
 * __host__ - Host IP. `{127, 0, 0, 1}` by default.
 * __port__ - Host port. `8080` by default.
-* __autosubscribe__ - Boolean. Enables automatic subscriptions via a callback module.
+* __autosubscribe__ - Enables automatic subscriptions via a callback module. `false` by default.
 * __subscriptions_module__ - Callback module for automatic subscriptions.
 
 
