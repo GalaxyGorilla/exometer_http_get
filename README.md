@@ -26,13 +26,14 @@ Configure it:
         {exometer_report_http_get, [
             {host, {127, 0, 0, 1}},
             {port, 8080}
-        ]}]}
+        ]}
+    ]}
 }.
 ```
 
 Available options:
 
-* __host__ - Host IP. `127.0.0.1` by default.
+* __host__ - Host IP. `{127, 0, 0, 1}` by default.
 * __port__ - Host port. `8080` by default.
 * __autosubscribe__ - Boolean. Enables automatic subscriptions via a callback module.
 * __subscriptions_module__ - Callback module for automatic subscriptions.
@@ -64,9 +65,9 @@ Check if everything is working:
 curl -i http://localhost:8080/erlang/memory
 ```
 
-Of course you can also check it in your browser. It is highly recommended to use JSON support.
+Of course you can also check it in your browser. It is highly recommended to use JSON support, e.g. JSON View or similar to make the metrics browsable.
 
-```json
+```
 {
     description: "Memory usage of BEAM in bytes",
     type: "gauge",
@@ -76,16 +77,17 @@ Of course you can also check it in your browser. It is highly recommended to use
 }
 ```
 
-Subpaths are possible, hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. 
-Additionally the complete path of every metric will be part of the JSON objects such that it is easy to find single metrics.
+Subpaths are possible, hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. Additionally the complete path of every metric will be part of the JSON objects such that it is easy to find single metrics.
 
-Also datapoints can be provided as http parameter, e.g. `http://localhost:8080/erlang/memory?datapoint=total`, such that the values can be read without parsing it first.
+Also datapoints can be provided as http parameter, e.g. `http://localhost:8080/erlang/memory?datapoint=total`, such that the corresponding metric value is returned without any further JSON structure around it. This makes scripting with e.g. curl for monitoring purposes very easy.
 
-Note that the report interval should be set to `manual` such that the metric is actually never reported using the time triggers. The metric value will be retrieved from exometer directly when one sends a HTTP GET request to the URL.
+### About exometer subscription time intervals:
+
+The report interval in subscriptions should be set to `manual` such that the metric is actually never reported using time interval triggers. The metric value will be retrieved from exometer directly when one sends a HTTP GET request to the corresponding URL.
 
 ### Auto subscriptions:
 
-There is capability for making a subscription automatically for each new entry. By default it is off. If you need to enable it in the reporter options and also provide a callback module which handles newly created entries.
+It is possible to create a subscription automatically for each newly created metric entry. By default this is disabled. You can enable it in the reporter options. You must also provide a callback module which handles the entries.
 
 ```erlang
 {exometer,
@@ -94,8 +96,9 @@ There is capability for making a subscription automatically for each new entry. 
             {autosubscribe, true},
             {subscriptions_module, exometer_http_get_subscribe_mod},
             {host, {127, 0, 0, 1}},
-            {port, 8080}]
-        }]}
+            {port, 8080}
+        ]}
+    ]}
 }.
 ```
 
@@ -112,6 +115,7 @@ subscribe(_, _) -> [].
 ```
 
 `subscribe/2` calls for each new entry and it should return a list or just one subscription. Here a single subscription has the following layout:
+
 ```erlang
 {exometer_report:metric(), exometer_report:datapoint(), manual, exometer_report:extra()}
 ```
