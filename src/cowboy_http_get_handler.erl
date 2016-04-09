@@ -12,15 +12,6 @@
 init(_Type, _Req, _Opts) ->
     {upgrade, protocol, cowboy_rest}.
 
-resource_exists(Req, _State) ->
-    {Path, Req1} = cowboy_req:path(Req),
-    case get_metric_info(Path) of
-        {ok, Payload} ->
-            {true, Req1, Payload};
-        {error, _Reason} ->
-            {halt, Req1, []}
-    end.
-
 allowed_methods(Req, State) ->
     {[<<"GET">>], Req, State}.
 
@@ -30,10 +21,20 @@ content_types_accepted(Req, State) ->
 content_types_provided(Req, State) ->
     {[{{<<"application">>, <<"json">>, []}, get_json}], Req, State}.
 
+resource_exists(Req, _State) ->
+    {Path, Req1} = cowboy_req:path(Req),
+    {DataPoint, Req2} = cowboy_req:qs_val(<<"datapoint">>, Req1, undefined),
+    case get_metric_info(Path, DataPoint) of
+        {ok, Payload} ->
+            {true, Req2, Payload};
+        {error, _Reason} ->
+            {halt, Req2, []}
+    end.
+
 
 %% -- Helpers
-get_metric_info(Path) ->
-    exometer_report:call_reporter(exometer_report_http_get, {path, Path}).
+get_metric_info(Path, DataPoint) ->
+    exometer_report:call_reporter(exometer_report_http_get, {request, Path, DataPoint}).
 
 put_json(Req, State) ->
     {true, Req, State}.

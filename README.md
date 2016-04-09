@@ -76,8 +76,10 @@ Of course you can also check it in your browser. It is highly recommended to use
 }
 ```
 
-Subpaths are also possible. Hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. 
+Subpaths are possible, hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. 
 Additionally the complete path of every metric will be part of the JSON objects such that it is easy to find single metrics.
+
+Also datapoints can be provided as http parameter, e.g. `http://localhost:8080/erlang/memory?datapoint=total`, such that the values can be read without parsing it first.
 
 Note that the report interval should be set to `manual` such that the metric is actually never reported using the time triggers. The metric value will be retrieved from exometer directly when one sends a HTTP GET request to the URL.
 
