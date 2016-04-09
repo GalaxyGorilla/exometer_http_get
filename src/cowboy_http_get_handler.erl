@@ -8,7 +8,9 @@
 
 -export([get_json/2, put_json/2]).
 
-%% -- cowboy callbacks
+%% ===================================================================
+%% cowboy callbacks
+%% ===================================================================
 init(_Type, _Req, _Opts) ->
     {upgrade, protocol, cowboy_rest}.
 
@@ -30,9 +32,11 @@ resource_exists(Req, _State) ->
         {error, _Reason} ->
             {halt, Req2, []}
     end.
+    
 
-
-%% -- Helpers
+%% ===================================================================
+%% helpers
+%% ===================================================================
 get_metric_info(Path, DataPoint) ->
     exometer_report:call_reporter(exometer_report_http_get, {request, Path, DataPoint}).
 
