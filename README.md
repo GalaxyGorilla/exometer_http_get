@@ -81,7 +81,7 @@ Subpaths are possible, hence you can query `http://localhost:8080/erlang` which 
 
 Also datapoints can be provided as http parameter, e.g. `http://localhost:8080/erlang/memory?datapoint=total`, such that the corresponding metric value is returned without any further JSON structure around it. This makes scripting with e.g. curl for monitoring purposes very easy.
 
-### About exometer subscription time intervals:
+#### About exometer subscription time intervals:
 
 The report interval in subscriptions should be set to `manual` such that the metric is actually never reported using time interval triggers. The metric value will be retrieved from exometer directly when one sends a HTTP GET request to the corresponding URL.
 
