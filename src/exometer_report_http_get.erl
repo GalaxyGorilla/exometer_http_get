@@ -87,8 +87,8 @@ exometer_unsubscribe(Metric, _DataPoint, _Extra, #state{subscriptions=Subscripti
     NewSubscriptions = maps:remove(PathToDelete, Subscriptions),
     {ok, State#state{subscriptions=NewSubscriptions}}.
 
-exometer_call({path, Path}, _From, #state{subscriptions=Subscriptions} = State) ->
-    {reply, get_metrics(Path, Subscriptions), State};
+exometer_call({request, Path, DataPoint}, _From, #state{subscriptions=Subscriptions} = State) ->
+    {reply, get_metrics(Path, format_datapoint(DataPoint), Subscriptions), State};
 exometer_call(_Req, _From, State) ->
     {ok, State}.
 
@@ -121,32 +121,53 @@ subscribe(_Name) -> [].
 binarize_list(List) when is_list(List) -> list_to_binary(List);
 binarize_list(Term) -> Term.
 
-get_metrics(Path, Subscriptions) ->
+format_datapoint(Binary) when is_binary(Binary) ->
+    case re:run(Binary, "^.[0-9]*$") of
+        {match, _} -> binary_to_integer(Binary);
+        _NoMatch   -> binary_to_atom(Binary, latin1)
+    end;
+format_datapoint(Atom) -> Atom.
+
+get_metrics(Path, DataPoint, Subscriptions) ->
     case maps:get(Path, Subscriptions, undefined) of
-        undefined ->
+        undefined when DataPoint =:= undefined ->
             % return all metrics which habe `Path` as prefix in their path,
             % the path of each metric is included in the JSON object
             find_metrics(Path, Subscriptions);
-        MetricInfo ->
-            % return this single metric without its path in the JSON object
-            proceed_single_metric(Path, MetricInfo, false)
+        undefined ->
+            % when a datapoint is given in the http params we require the
+            % url to match a configuered path of a metric
+            {error, not_found};
+        MetricInfo when DataPoint =:= undefined ->
+            % return this single metric without its path in the JSON object;
+            % since no datapoint is defined all of them will be considered
+            proceed_single_metric(Path, MetricInfo, true, false);
+        {Metric, _DataPoints, Description, Type} ->
+            % return the given single datapoint of the found metric;
+            NewMetricInfo = {Metric, [DataPoint], Description, Type},
+            case proceed_single_metric(Path, NewMetricInfo, false, false) of
+                {ok, [{_, FinalPayload}]} -> {ok, FinalPayload};
+                _Error -> {error, not_found}
+            end
     end.
 
-proceed_single_metric(Path, {Metric, DataPoints, Description, Type}, Pathflag) ->
+proceed_single_metric(Path, {Metric, DataPoints, Description, Type}, InfoFlag, PathFlag) ->
     case exometer:get_value(Metric, DataPoints) of
         {ok, DataPointValues} ->
             DataPoints1 = [{DataPoint, binarize_list(Value)} ||
                            {DataPoint, Value} <- DataPointValues],
-            Payload = [{description, Description},
-                       {type, Type},
-                       {datapoints, DataPoints1}],
-            {ok, maybe_add_path(Payload, Path, Pathflag)};
+            Payload = maybe_add_more(Path, DataPoints1, Description,
+                                     Type, InfoFlag, PathFlag),
+            {ok, Payload};
         _Error ->
             {error, not_found}
     end.
 
-maybe_add_path(Payload, _Path, false) -> Payload;
-maybe_add_path(Payload, Path, true) -> [{path, Path}] ++ Payload.
+maybe_add_more(_Path, DataPoints, _Description, _Type, false, _Pathflag) -> DataPoints;
+maybe_add_more(_Path, DataPoints, Description, Type, true, false) ->
+    [{description, Description}, {type, Type}, {datapoints, DataPoints}];
+maybe_add_more(Path, DataPoints, Description, Type, true, true) ->
+    [{path, Path}, {description, Description}, {type, Type}, {datapoints, DataPoints}].
 
 find_metrics(Path, Subscriptions) ->
     PrefixPaths = get_prefix_paths(Path, maps:keys(Subscriptions)),
@@ -167,7 +188,7 @@ accumulate_metrics(Subscriptions) ->
 accumulate_metrics([], Metrics) ->
     Metrics;
 accumulate_metrics([{Path, MetricInfo} | Subscriptions], Metrics) ->
-    case proceed_single_metric(Path, MetricInfo, true) of
+    case proceed_single_metric(Path, MetricInfo, true, true) of
         {ok, Metric}     -> accumulate_metrics(Subscriptions, Metrics ++ [Metric]);
         {error, _Reason} -> accumulate_metrics(Subscriptions, Metrics)
     end.
