@@ -110,14 +110,13 @@ The callback module may look like:
 -module(exometer_http_get_subscribe_mod).
 -export([subscribe/2]).
 
-subscribe([metric, test], histogram) ->
-    [{[metric, test], max, manual, [{path, "/some/path"}]},
-     {[metric, test], median, manual, [{path, "some/other/path"}]}];
+subscribe([test, metric], histogram) ->
+    {[test, metric], [max, min], [{path, "/some/path"}]};
 subscribe(_, _) -> [].
 ```
 
-`subscribe/2` calls for each new entry and it should return a list or just one subscription. Here a single subscription has the following layout:
+`subscribe/2` calls for each new entry and it should return a (possibly empty) list or just one subscription. Here a single subscription has the following layout:
 
 ```erlang
-{exometer_report:metric(), exometer_report:datapoint(), manual, exometer_report:extra()}
+{exometer_report:metric(), exometer_report:datapoint(), exometer_report:extra()}
 ```

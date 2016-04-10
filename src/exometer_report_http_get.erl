@@ -93,13 +93,15 @@ exometer_call(_Req, _From, State) ->
     {ok, State}.
 
 exometer_newentry(#exometer_entry{name = Name, type = Type}, 
-                  #state{autosubscribe = Autosubscribe, 
+                  #state{autosubscribe = true,
                          subscriptions_module = Module} = State) ->
-    case {Autosubscribe, Module} of
-        {true, Module} when is_atom(Module); Module /= undefined ->
+    case code:is_loaded(Module) of
+        {file, _Loaded} ->
             subscribe(Module:subscribe(Name, Type));
-        _ -> []
+        _Error -> []
     end,
+    {ok, State};
+exometer_newentry(_Entry, State) ->
     {ok, State}.
 
 exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> {ok, State}.
@@ -114,8 +116,8 @@ exometer_terminate(_Reason, _) -> ignore.
 %% ===================================================================
 subscribe(Subscriptions) when is_list(Subscriptions) ->
     [subscribe(Subscription) || Subscription <- Subscriptions];
-subscribe({Name, DataPoint, Interval, Extra}) ->
-    exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, false);
+subscribe({Name, DataPoint, Extra}) ->
+    exometer_report:subscribe(?MODULE, Name, DataPoint, manual, Extra, false);
 subscribe(_Name) -> [].
 
 binarize_list(List) when is_list(List) -> list_to_binary(List);
