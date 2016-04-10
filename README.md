@@ -47,7 +47,7 @@ In application config:
 {exometer,
     {subscriptions, [
         {exometer_report_http_get, [erlang, memory], total, manual,
-         [{path, "/erlang/memory"}, {description, "Memory usage of BEAM in bytes"}, {type, "gauge"}]},
+         [{path, "/erlang/memory"}, {description, "Memory usage of BEAM"}, {type, "byte"}]},
     ]}
 }.
 ```
@@ -56,7 +56,7 @@ As function call within your modules:
 
 ```erlang
 exometer_report:subscribe(exometer_report_http_get, [erlang, memory], total, manual,
-         [{path, "/erlang/memory"}, {description, "Memory usage of BEAM in bytes"}, {type, "gauge"}]).
+         [{path, "/erlang/memory"}, {description, "Memory usage of BEAM"}, {type, "byte"}]).
 ```
 
 Check if everything is working:
@@ -65,19 +65,21 @@ Check if everything is working:
 curl -i http://localhost:8080/erlang/memory
 ```
 
-Of course you can also check it in your browser. It is highly recommended to use JSON support, e.g. JSON View or similar to make the metrics browsable.
+Of course you can also check it in your browser. It is highly recommended to use JSON support, e.g. the JSON View extension or similar to make the metrics browsable.
 
 ```
 {
-    description: "Memory usage of BEAM in bytes",
-    type: "gauge",
+    description: "Memory usage of BEAM",
+    type: "byte",
     datapoints: {
         total: 32647912
     }
 }
 ```
 
-Subpaths are possible, hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. Additionally the complete path of every metric will be part of the JSON objects such that it is easy to find single metrics.
+Subpaths are possible, hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. Additionally the complete URL of every metric will be part of each JSON object such that it is easy to find and browse them (using a browser extension of your choice).
+
+The `description` and `type` fields are not displayed if their values are not present in the subscription call or empty!
 
 Also datapoints can be provided as http parameter, e.g. `http://localhost:8080/erlang/memory?datapoint=total`, such that the corresponding metric value is returned without any further JSON structure around it. This makes scripting with e.g. curl for monitoring purposes very easy.
 
