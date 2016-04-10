@@ -65,7 +65,7 @@ Check if everything is working:
 curl -i http://localhost:8080/erlang/memory
 ```
 
-Of course you can also check it in your browser. It is highly recommended to use JSON support, e.g. the JSON View extension or similar to make the metrics browsable.
+Of course you can also check it in your browser. It is highly recommended to use JSON support, e.g. the [JSON View extension](https://chrome.google.com/webstore/detail/jsonview/chklaanhfefbnpoihckbnefhakgolnmc?hl=en) or similar to make the metrics browsable.
 
 ```
 {
