@@ -118,5 +118,5 @@ subscribe(_, _) -> [].
 `subscribe/2` calls for each new entry and it should return a (possibly empty) list or just one subscription. Here a single subscription has the following layout:
 
 ```erlang
-{exometer_report:metric(), exometer_report:datapoint(), exometer_report:extra()}
+{exometer_report:metric(), exometer_report:datapoints(), exometer_report:extra()}
 ```
