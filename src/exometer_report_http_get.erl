@@ -87,8 +87,8 @@ exometer_unsubscribe(Metric, _DataPoint, _Extra, #state{subscriptions=Subscripti
     NewSubscriptions = maps:remove(PathToDelete, Subscriptions),
     {ok, State#state{subscriptions=NewSubscriptions}}.
 
-exometer_call({request, Path, DataPoint}, _From, #state{subscriptions=Subscriptions} = State) ->
-    {reply, get_metrics(Path, format_datapoint(DataPoint), Subscriptions), State};
+exometer_call({request, Url, DataPoint}, _From, #state{subscriptions=Subscriptions} = State) ->
+    {reply, get_metrics(Url, format_datapoint(DataPoint), Subscriptions), State};
 exometer_call(_Req, _From, State) ->
     {ok, State}.
 
@@ -121,59 +121,65 @@ subscribe(_Name) -> [].
 binarize_list(List) when is_list(List) -> list_to_binary(List);
 binarize_list(Term) -> Term.
 
-format_datapoint(Binary) when is_binary(Binary) ->
+format_datapoint(<<"">>) ->
+    undefined;
+format_datapoint(Binary) ->
     case re:run(Binary, "^.[0-9]*$") of
         {match, _} -> binary_to_integer(Binary);
         _NoMatch   -> binary_to_atom(Binary, latin1)
-    end;
-format_datapoint(Atom) -> Atom.
+    end.
 
-get_metrics(Path, DataPoint, Subscriptions) ->
+get_metrics({_HostUrl, Path} = Url, DataPoint, Subscriptions) ->
     case maps:get(Path, Subscriptions, undefined) of
         undefined when DataPoint =:= undefined ->
-            % return all metrics which habe `Path` as prefix in their path,
-            % the path of each metric is included in the JSON object
-            find_metrics(Path, Subscriptions);
+            % return all metrics which have `Path` as prefix in their path,
+            % the URL of each metric is included in the JSON object
+            find_metrics(Url, Subscriptions);
         undefined ->
             % when a datapoint is given in the http params we require the
             % url to match a configuered path of a metric
             {error, not_found};
         MetricInfo when DataPoint =:= undefined ->
-            % return this single metric without its path in the JSON object;
+            % return this single metric without its URL in the JSON object;
             % since no datapoint is defined all of them will be considered
-            proceed_single_metric(Path, MetricInfo, true, false);
+            proceed_single_metric(Url, MetricInfo, true, false);
         {Metric, _DataPoints, Description, Type} ->
             % return the given single datapoint of the found metric;
             NewMetricInfo = {Metric, [DataPoint], Description, Type},
-            case proceed_single_metric(Path, NewMetricInfo, false, false) of
+            case proceed_single_metric(Url, NewMetricInfo, false, false) of
                 {ok, [{_, FinalPayload}]} -> {ok, FinalPayload};
                 _Error -> {error, not_found}
             end
     end.
 
-proceed_single_metric(Path, {Metric, DataPoints, Description, Type}, InfoFlag, PathFlag) ->
+proceed_single_metric(Url, {Metric, DataPoints, Description, Type}, InfoFlag, UrlFlag) ->
     case exometer:get_value(Metric, DataPoints) of
         {ok, DataPointValues} ->
             DataPoints1 = [{DataPoint, binarize_list(Value)} ||
                            {DataPoint, Value} <- DataPointValues],
-            Payload = maybe_add_more(Path, DataPoints1, Description,
-                                     Type, InfoFlag, PathFlag),
+            Payload = maybe_add_more(Url, DataPoints1, Description,
+                                     Type, InfoFlag, UrlFlag),
             {ok, Payload};
         _Error ->
             {error, not_found}
     end.
 
-maybe_add_more(_Path, DataPoints, _Description, _Type, false, _Pathflag) -> DataPoints;
-maybe_add_more(_Path, DataPoints, Description, Type, true, false) ->
-    [{description, Description}, {type, Type}, {datapoints, DataPoints}];
-maybe_add_more(Path, DataPoints, Description, Type, true, true) ->
-    [{path, Path}, {description, Description}, {type, Type}, {datapoints, DataPoints}].
+maybe_add_more(_Url, DataPoints, _Description, _Type, false, _UrlFlag) -> DataPoints;
+maybe_add_more(_Url, DataPoints, Description, Type, true, false) ->
+    clean_info(Description, Type) ++ [{datapoints, DataPoints}];
+maybe_add_more({HostUrl, Path}, DataPoints, Description, Type, true, true) ->
+    Link = [{link, <<HostUrl/binary, Path/binary>>}],
+    Link ++ clean_info(Description, Type) ++ [{datapoints, DataPoints}].
 
-find_metrics(Path, Subscriptions) ->
+clean_info(Description, Type) ->
+    Info = [{description, Description}, {type, Type}],
+    [{Field, Value} || {Field, Value} <- Info, Value /= <<"">>].
+
+find_metrics({HostUrl, Path}, Subscriptions) ->
     PrefixPaths = get_prefix_paths(Path, maps:keys(Subscriptions)),
     Pred = fun(K,_V) -> lists:member(K, PrefixPaths) end,
     FilteredSubsciptions = maps:filter(Pred, Subscriptions),
-    case accumulate_metrics(maps:to_list(FilteredSubsciptions)) of
+    case accumulate_metrics(HostUrl, maps:to_list(FilteredSubsciptions)) of
         []      -> {error, not_found};
         Metrics -> {ok, Metrics}
     end.
@@ -182,14 +188,16 @@ get_prefix_paths(Path, Paths) ->
     ByteSize = byte_size(Path),
     [ SinglePath || SinglePath <- Paths, ByteSize==binary:longest_common_prefix([Path, SinglePath]) ].
 
-accumulate_metrics(Subscriptions) ->
-    accumulate_metrics(Subscriptions, []).
+accumulate_metrics(HostUrl, Subscriptions) ->
+    accumulate_metrics(HostUrl, Subscriptions, []).
 
-accumulate_metrics([], Metrics) ->
+accumulate_metrics(_HostUrl, [], Metrics) ->
     Metrics;
-accumulate_metrics([{Path, MetricInfo} | Subscriptions], Metrics) ->
-    case proceed_single_metric(Path, MetricInfo, true, true) of
-        {ok, Metric}     -> accumulate_metrics(Subscriptions, Metrics ++ [Metric]);
-        {error, _Reason} -> accumulate_metrics(Subscriptions, Metrics)
+accumulate_metrics(HostUrl, [{Path, MetricInfo} | Subscriptions], Metrics) ->
+    case proceed_single_metric({HostUrl, Path}, MetricInfo, true, true) of
+        {ok, Metric}     ->
+            accumulate_metrics(HostUrl, Subscriptions, Metrics ++ [Metric]);
+        {error, _Reason} ->
+            accumulate_metrics(HostUrl, Subscriptions, Metrics)
     end.
 

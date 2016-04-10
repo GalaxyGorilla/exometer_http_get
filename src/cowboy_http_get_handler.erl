@@ -25,20 +25,21 @@ content_types_provided(Req, State) ->
 
 resource_exists(Req, _State) ->
     {Path, Req1} = cowboy_req:path(Req),
-    {DataPoint, Req2} = cowboy_req:qs_val(<<"datapoint">>, Req1, undefined),
-    case get_metric_info(Path, DataPoint) of
+    {HostUrl, Req2} = cowboy_req:host_url(Req1),
+    {DataPoint, Req3} = cowboy_req:qs_val(<<"datapoint">>, Req2, <<"">>),
+    case get_metric_info({HostUrl, Path}, DataPoint) of
         {ok, Payload} ->
-            {true, Req2, Payload};
+            {true, Req3, Payload};
         {error, _Reason} ->
-            {halt, Req2, []}
+            {halt, Req3, []}
     end.
     
 
 %% ===================================================================
 %% helpers
 %% ===================================================================
-get_metric_info(Path, DataPoint) ->
-    exometer_report:call_reporter(exometer_report_http_get, {request, Path, DataPoint}).
+get_metric_info(Url, DataPoint) ->
+    exometer_report:call_reporter(exometer_report_http_get, {request, Url, DataPoint}).
 
 put_json(Req, State) ->
     {true, Req, State}.
