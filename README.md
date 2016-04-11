@@ -1,6 +1,6 @@
 # exometer_http_get [![Build Status](https://travis-ci.org/GalaxyGorilla/exometer_http_get.svg)](https://travis-ci.org/GalaxyGorilla/exometer_http_get)
 
-This reporter makes metrics from exometer available via HTTP GET returning data as JSON.
+This reporter makes metrics from exometer available via HTTP GET returning data as plain text or JSON.
 
 ### Usage
 
@@ -65,7 +65,11 @@ Check if everything is working:
 curl -i http://localhost:8080/erlang/memory
 ```
 
-Of course you can also check it in your browser. It is highly recommended to use JSON support, e.g. the [JSON View extension](https://chrome.google.com/webstore/detail/jsonview/chklaanhfefbnpoihckbnefhakgolnmc?hl=en) or similar to make the metrics browsable.
+By default JSON is returned. However, if you want plain text just set the accept header to `text/plain`.
+
+Of course you can also check it in your browser. It is highly recommended to use JSON support if you use the JSON output, e.g. the
+[JSON View extension](https://chrome.google.com/webstore/detail/jsonview/chklaanhfefbnpoihckbnefhakgolnmc?hl=en) or similar to make the metrics browsable.
+JSON output example:
 
 ```
 {
@@ -77,19 +81,30 @@ Of course you can also check it in your browser. It is highly recommended to use
 }
 ```
 
-Subpaths are possible, hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix. Additionally the complete URL of every metric will be part of each JSON object such that it is easy to find and browse them (using a browser extension of your choice).
+Plain text output example:
+
+```
+description="Memory usage of BEAM" type="byte" datapoints=[ total=32647912 ]
+```
+
+Subpaths are possible, hence you can query `http://localhost:8080/erlang` which will retrieve all metrics which have `/erlang` as prefix.
+Additionally the complete URL of every metric will be part of each JSON or text such that it is easy to find them. For the plain text output each metric is
+printed in a single line, for JSON you get an array of metric objects.
 
 The `description` and `type` fields are not displayed if their values are not present in the subscription call or empty!
 
-Also datapoints can be provided as http parameter, e.g. `http://localhost:8080/erlang/memory?datapoint=total`, such that the corresponding metric value is returned without any further JSON structure around it. This makes scripting with e.g. curl for monitoring purposes very easy.
+Also datapoints can be provided as http parameter, e.g. `http://localhost:8080/erlang/memory?datapoint=total`, such that the corresponding metric value is
+returned without any further text or JSON structure around it. This makes scripting with e.g. curl for monitoring purposes very easy.
 
 #### About exometer subscription time intervals:
 
-The report interval in subscriptions should be set to `manual` such that the metric is actually never reported using time interval triggers. The metric value will be retrieved from exometer directly when one sends a HTTP GET request to the corresponding URL.
+The report interval in subscriptions should be set to `manual` such that the metric is actually never reported using time interval triggers.
+The metric value will be retrieved from exometer directly when one sends a HTTP GET request to the corresponding URL.
 
 ### Auto subscriptions:
 
-It is possible to create a subscription automatically for each newly created metric entry. By default this is disabled. You can enable it in the reporter options. You must also provide a callback module which handles the entries.
+It is possible to create a subscription automatically for each newly created metric entry. By default this is disabled. You can enable it in the reporter options.
+You must also provide a callback module which handles the entries.
 
 ```erlang
 {exometer,
