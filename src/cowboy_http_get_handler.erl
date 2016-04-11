@@ -49,7 +49,7 @@ get_plain_text(Req, Payload) when is_list(Payload) ->
     PlainText = encode_plain_text(Payload),
     {PlainText, Req, []};
 get_plain_text(Req, Payload) ->
-    {Payload, Req, []}.
+    {make_io(Payload), Req, []}.
 
 encode_plain_text(Payload) ->
     FirstLevel = get_first_level(Payload),
@@ -68,6 +68,6 @@ encode_plain_text(Term, Akk) ->
     Akk ++ [make_io(Term)].
 
 make_io(Atom) when is_atom(Atom) -> atom_to_list(Atom);
-make_io(Integer) when is_integer(Integer) -> integer_to_list(Integer);
+make_io(Integer) when is_integer(Integer) -> [integer_to_list(Integer)];
 make_io(Term) -> Term.
 
